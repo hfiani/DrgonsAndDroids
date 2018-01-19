@@ -31,10 +31,10 @@ public class R2D2 : MonoBehaviour
 			rand = Random.Range (0, 5);
 		}
 	}
-	
-	// Update is called once per frame
+
 	void Update ()
 	{
+		// NavMesh movement: go to the next destination OR wait a random time before you go
 		if (MovementEnabled && Vector3.Distance (navmesh.destination, transform.position) < 5)
 		{
 			if (t == 0)
@@ -62,6 +62,7 @@ public class R2D2 : MonoBehaviour
 
 	void OnDestroy()
 	{
+		// if R2D2 gets destroyed, open the doors
 		if (Door != null)
 		{
 			Door.GetChild (0).localRotation = Quaternion.Euler (0, 90, 0);

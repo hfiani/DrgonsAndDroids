@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+// name is barrel, this is actually used for the fire particle system
 public class Barrel : MonoBehaviour
 {
 	[SerializeField] private GameObject explosion;

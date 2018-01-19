@@ -62,10 +62,8 @@ public class EmguTest : MonoBehaviour
 
 	bool processing = true;
 
-	RawImage img1;
-	RawImage img2;
-	Texture2D texture1;
-	Texture2D texture2;
+	RawImage img;
+	Texture2D texture;
 	Mat imgRGB = new Mat();
 	Mat imgGray2 = new Mat();
 	Mat imgTexture = new Mat ();
@@ -98,6 +96,7 @@ public class EmguTest : MonoBehaviour
 
 	void Awake ()
 	{
+		// init variables
 		gaussSizeV = new Size (gaussSize, gaussSize);
 		meanSizeV = new Size (meanSize, meanSize);
 
@@ -117,8 +116,7 @@ public class EmguTest : MonoBehaviour
 		centerPrevious = new Point(-1, -1);
 		centerOfScreen = new Point(Screen.width / 2, Screen.height / 2);
 
-		//img1 = GameObject.Find ("MoveImageCam").GetComponent<RawImage> ();
-		img2 = GameObject.Find ("FireImageCam").GetComponent<RawImage> ();
+		img = GameObject.Find ("FireImageCam").GetComponent<RawImage> ();
 		dragon = GameObject.Find ("Dragon").transform;
 		dragonAnim = dragon.GetComponent<Animator> ();
 		particles = GameObject.Find ("Canon_part").transform;
@@ -132,24 +130,25 @@ public class EmguTest : MonoBehaviour
 	// Use this for initialization
 	void Start ()
 	{
+		// stop fire at time 0
 		particles.GetComponent<ParticleSystem> ().Stop ();
+
 		movObj = GameObject.Find ("FireImageCam").GetComponent<RectTransform> ();
-		texture1 = new Texture2D ((int) movObj.rect.width, (int) movObj.rect.height, TextureFormat.RGBA32, false);
-		texture2 = new Texture2D ((int) movObj.rect.width, (int) movObj.rect.height, TextureFormat.RGBA32, false);
+		texture = new Texture2D ((int) movObj.rect.width, (int) movObj.rect.height, TextureFormat.RGBA32, false);
 		rectSizeV = new Size ((int)movObj.rect.width, (int)movObj.rect.height);
 	}
 
 	// Update is called once per frame
 	void Update ()
 	{
+		// give the raw image the cam texture
 		if (!processing && webcam != null)
 		{
-			//ImageToTexture (imgGray2, texture1);
-			//img1.texture = texture1;
-			img2.texture = texture2;
-			ImageToTexture (imgTexture, texture2);
+			img.texture = texture;
+			ImageToTexture (imgTexture, texture);
 		}
 
+		// if attack variable is different than the current state, change the state
 		if (attack != dragonAnim.GetBool ("Attack"))
 		{
 			dragonAnim.SetBool ("Attack", attack);
@@ -158,7 +157,9 @@ public class EmguTest : MonoBehaviour
 		if(move)
 		{
 			deltaX = centerPrevious.X - centerOfScreen.X;
-			deltaY = -(centerPrevious.Y - centerOfScreen.Y);
+			deltaY = -(centerPrevious.Y - centerOfScreen.Y); // negative because the Y axis starts at bottom
+
+			// rotate with X axis difference
 			dragon.rotation = Quaternion.Euler
 			(
 				new Vector3 (
@@ -168,6 +169,7 @@ public class EmguTest : MonoBehaviour
 				)
 			);
 
+			// translate with Y axis difference
 			if (Mathf.Abs (deltaY) > 0.1f)
 			{
 				dragon.GetComponent<CharacterController>().Move(dragon.forward * deltaY * Time.deltaTime);
@@ -196,6 +198,7 @@ public class EmguTest : MonoBehaviour
 		}
 	}
 
+	// calculate the center of the object with the color chosen, and detect cat face
 	void ImageGrabbed(object sender, EventArgs e)
 	{
 		if (webcam != null && webcam.IsOpened)
@@ -226,6 +229,7 @@ public class EmguTest : MonoBehaviour
 
 			imgGray2 = imm.InRange (lower, high).Mat;
 
+			// clean impurities
 			if (iterations != 0 && crossSize >= 3)
 			{
 				imgCross = CvInvoke.GetStructuringElement (ElementShape.Cross, crossSizeV, anchor);
@@ -235,6 +239,7 @@ public class EmguTest : MonoBehaviour
 			}
 			CvInvoke.FindContours (imgGray2, contours, imgHier, RetrType.List, ChainApproxMethod.ChainApproxNone);
 
+			// get biggest area
 			double biggestArea = 0;
 			int biggestIndex = -1;
 			for (int i = 0; i < contours.Size; i++)
@@ -255,9 +260,9 @@ public class EmguTest : MonoBehaviour
 				MCvMoments centerM = CvInvoke.Moments (contours [biggestIndex]);
 				centerX = (int)(centerM.M10 / centerM.M00);
 				centerY = (int)(centerM.M01 / centerM.M00);
-
 			}
 
+			// a big enough area means we must move
 			if (biggestArea > areaStep)
 			{
 				move = true;
@@ -266,26 +271,33 @@ public class EmguTest : MonoBehaviour
 			{
 				move = false;
 			}
+
+			// if no center found, set it to the center of the screen, to get a delta = 0
 			if (centerX != -1 && centerY != -1)
 			{
 				centerPrevious.X = centerX;
 				centerPrevious.Y = centerY;
+				// draw the center of the area as green circle
 				CvInvoke.Circle (imgRGB, centerPrevious, 20, contourColor, 15);
 			}
 			else
 			{
 				centerPrevious = centerOfScreen;
 			}
+			// draw the center of the screen as blue circle
 			CvInvoke.Circle(imgRGB, centerOfScreen, 20, centerColor, 15);
 
+			// detect cat face
 			rects = classif.DetectMultiScale (imgGray, 1.1, 5, minFaceSizeV, maxFaceSizeV);
 			processing = false;
 
+			// draw a green rectangle where we found a cat face
 			for (int i = 0; i < rects.Length; i++)
 			{
 				CvInvoke.Rectangle (imgRGB, rects [i], contourColor, 15);
 			}
 
+			// if there is at least 1 cat face=> ATTACK!!!
 			if (rects.Length > 0)
 			{
 				faceUndetectCount = 0;
@@ -299,27 +311,17 @@ public class EmguTest : MonoBehaviour
 					attack = false;
 				}
 			}
+
+			// resize the image and flip it in order to convert it later and put it into raw texture
 			CvInvoke.Resize (imgRGB, imgTexture, rectSizeV);
 			CvInvoke.Flip (imgTexture, imgTexture, FlipType.Vertical);
 		}
 		GC.Collect ();
 	}
 
-	float clamp(float value, float min, float max)
-	{
-		if (value < min)
-		{
-			value = min;
-		}
-		if (value > max)
-		{
-			value = max;
-		}
-		return value;
-	}
-
 	void OnGUI()
 	{
+		// if no camera selected, choose one from the available
 		if (webcam == null)
 		{
 			for (int i = 0; i < devices.Length; i++)
@@ -384,6 +386,7 @@ public class EmguTest : MonoBehaviour
 
 	public void ImageToTexture(Mat image, Texture2D texture)
 	{
+		// convert image to texture
 		texture.LoadRawTextureData(image.ToImage<Rgba, byte> ().Bytes);
 		texture.Apply ();
 	}
