@@ -5,7 +5,6 @@ using UnityEngine.SceneManagement;
 
 public class MenuStart : MonoBehaviour
 {
-
 	// Use this for initialization
 	void Start ()
 	{
